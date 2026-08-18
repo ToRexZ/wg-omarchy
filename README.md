@@ -6,6 +6,12 @@ Shows a lock icon in the bar (dim when off, bright when on). Clicking it opens
 a panel with a live ON/OFF status, a toggle button, and an inline sudo password
 prompt. It drives `sudo wg-quick up wg0` / `sudo wg-quick down wg0`.
 
+## Screenshots
+
+![Screenshot 1](screenshot-2026-08-18_16-30-57.png)
+![Screenshot 2](screenshot-2026-08-18_16-31-32.png)
+![Screenshot 3](screenshot-2026-08-18_16-31-46.png)
+
 ## Install
 
 ```bash
