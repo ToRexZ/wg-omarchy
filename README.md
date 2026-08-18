@@ -14,7 +14,7 @@ prompt. It drives `sudo wg-quick up wg0` / `sudo wg-quick down wg0`.
 ## Install
 
 ```bash
-omarchy plugin add https://github.com/<your-user>/wg-omarchy.git --enable
+omarchy plugin add https://github.com/liran-shternberg/wg-omarchy.git --enable
 ```
 
 Or develop locally:
@@ -24,6 +24,12 @@ ln -s ~/Projects/wg-omarchy ~/.config/omarchy/plugins/wg-omarchy
 omarchy-shell shell rescanPlugins
 omarchy plugin enable wg-omarchy
 omarchy bar move wg-omarchy --section right
+```
+
+## Uninstall
+
+```bash
+omarchy plugin remove wg-omarchy
 ```
 
 ## Requirements
