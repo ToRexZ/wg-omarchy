@@ -177,8 +177,10 @@ Panel {
         accent: (root.vpnOn || root.errorText !== "") ? Color.urgent : Color.accent
         bordered: true
         onClicked: {
-          if (root.showingPrompt) root.showingPrompt = false
-          else root.beginAction()
+          if (root.showingPrompt) {
+            root.showingPrompt = false
+            root.passwordText = ""
+          } else root.beginAction()
         }
       }
 
