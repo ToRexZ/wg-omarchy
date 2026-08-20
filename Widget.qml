@@ -12,6 +12,7 @@ Panel {
   property bool showingPrompt: false
   property string passwordText: ""
   property bool busy: false
+  property string errorText: ""
 
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
@@ -48,9 +49,15 @@ Panel {
     }
     onExited: function(code, status) {
       root.passwordText = ""
-      root.showingPrompt = false
       root.busy = false
-      refreshTimer.start()
+      if (code === 0) {
+        root.errorText = ""
+        root.showingPrompt = false
+        refreshTimer.start()
+      } else {
+        root.beginAction()
+        root.errorText = "Error"
+      }
     }
   }
 
@@ -62,16 +69,21 @@ Panel {
   }
 
   function beginAction() {
+    root.errorText = ""
     root.showingPrompt = true
     Qt.callLater(function() { if (root.showingPrompt) pwField.forceActiveFocus() })
   }
 
   function submitAction() {
+    if (root.busy || sudoProc.running) return
     if (root.passwordText.length === 0) return
     var action = root.vpnOn ? "down" : "up"
     root.busy = true
+    root.showingPrompt = false
     sudoProc.secret = root.passwordText
-    sudoProc.command = ["sudo", "-S", "wg-quick", action, "wg0"]
+    root.passwordText = ""
+    // sh reads the one line, printf closes the pipe, so sudo gets EOF and exits on a wrong password.
+    sudoProc.command = ["sh", "-c", "read -r p && printf '%s\\n' \"$p\" | sudo -S wg-quick " + action + " wg0"]
     sudoProc.running = true
   }
 
@@ -161,8 +173,8 @@ Panel {
 
       Button {
         width: parent.width
-        text: root.busy ? "…" : (root.vpnOn ? "OFF" : "ON")
-        accent: root.vpnOn ? Color.urgent : Color.accent
+        text: root.busy ? "…" : (root.errorText !== "" ? root.errorText : (root.vpnOn ? "OFF" : "ON"))
+        accent: (root.vpnOn || root.errorText !== "") ? Color.urgent : Color.accent
         bordered: true
         onClicked: {
           if (root.showingPrompt) root.showingPrompt = false
