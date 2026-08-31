@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "wg-omarchy",
   "name": "WireGuard VPN",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "author": "Liran",
   "description": "WireGuard VPN toggle for the Omarchy bar",
   "kinds": ["bar-widget"],

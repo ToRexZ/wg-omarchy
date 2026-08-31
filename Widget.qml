@@ -19,6 +19,8 @@ Panel {
 
   Component.onCompleted: statusProbe.running = true
 
+  onOpenedChanged: if (!opened) root.passwordText = ""
+
   Timer {
     id: poll
     interval: 5000
