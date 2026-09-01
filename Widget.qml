@@ -8,9 +8,12 @@ Panel {
   id: root
   moduleName: "wg-omarchy"
 
+  // NetworkManager owns this tunnel, so up/down is a connection action rather
+  // than `wg-quick`: there is no /etc/wireguard/<iface>.conf to read and no
+  // root to acquire. polkit's network-control grant covers the active session.
+  readonly property string connName: (settings && settings.connection) ? settings.connection : "CapraWG-vhr"
+
   property bool vpnOn: false
-  property bool showingPrompt: false
-  property string passwordText: ""
   property bool busy: false
   property string errorText: ""
 
@@ -19,47 +22,36 @@ Panel {
 
   Component.onCompleted: statusProbe.running = true
 
-  onOpenedChanged: if (!opened) root.passwordText = ""
-
   Timer {
     id: poll
     interval: 5000
     repeat: true
     running: true
-    onTriggered: statusProbe.running = true
+    onTriggered: if (!root.busy) statusProbe.running = true
   }
 
-  // ponytail: any tunnel interface counts as "on"; refine per-interface if a specific VPN type matters.
+  // Scoped to one connection on purpose. The old `ip link | grep tun|tap|wg|ppp`
+  // probe reported ON for any tunnel on the box — a devcontainer veth or a
+  // second VPN would light this widget up for a tunnel it cannot toggle.
+  // GENERAL.STATE is absent entirely until the connection is activated, so
+  // empty output means down.
   Process {
     id: statusProbe
     running: false
-    command: ["sh", "-c", "ip link show | grep -E 'tun|tap|wg|ppp'"]
+    command: ["nmcli", "-t", "-f", "GENERAL.STATE", "con", "show", "id", root.connName]
     stdout: StdioCollector {
       waitForEnd: true
-      onStreamFinished: root.vpnOn = String(text).trim().length > 0
+      onStreamFinished: root.vpnOn = String(text).indexOf("activated") >= 0
     }
   }
 
-  // Runs `sudo wg-quick <up|down> wg0` with the password over stdin, never argv.
   Process {
-    id: sudoProc
-    property string secret: ""
-    stdinEnabled: true
-    onStarted: {
-      write(secret + "\n")
-      secret = ""
-    }
+    id: toggleProc
+    running: false
     onExited: function(code, status) {
-      root.passwordText = ""
       root.busy = false
-      if (code === 0) {
-        root.errorText = ""
-        root.showingPrompt = false
-        refreshTimer.start()
-      } else {
-        root.beginAction()
-        root.errorText = "Error"
-      }
+      root.errorText = (code === 0) ? "" : "Failed"
+      refreshTimer.start()
     }
   }
 
@@ -70,23 +62,16 @@ Panel {
     onTriggered: statusProbe.running = true
   }
 
-  function beginAction() {
-    root.errorText = ""
-    root.showingPrompt = true
-    Qt.callLater(function() { if (root.showingPrompt) pwField.forceActiveFocus() })
-  }
-
   function submitAction() {
-    if (root.busy || sudoProc.running) return
-    if (root.passwordText.length === 0) return
-    var action = root.vpnOn ? "down" : "up"
+    if (root.busy || toggleProc.running) return
     root.busy = true
-    root.showingPrompt = false
-    sudoProc.secret = root.passwordText
-    root.passwordText = ""
-    // sh reads the one line, printf closes the pipe, so sudo gets EOF and exits on a wrong password.
-    sudoProc.command = ["sh", "-c", "read -r p && printf '%s\\n' \"$p\" | sudo -S wg-quick " + action + " wg0"]
-    sudoProc.running = true
+    root.errorText = ""
+    // --wait bounds a handshake that never completes; without it nmcli blocks
+    // for its 90s default and the widget sits on "…" the whole time.
+    toggleProc.command = root.vpnOn
+      ? ["nmcli", "con", "down", "id", root.connName]
+      : ["nmcli", "--wait", "15", "con", "up", "id", root.connName]
+    toggleProc.running = true
   }
 
   BarIconButton {
@@ -96,7 +81,7 @@ Panel {
     text: "󰌆"
     active: root.vpnOn
     dimmed: !root.vpnOn
-    tooltipText: root.vpnOn ? "VPN: ON" : "VPN: OFF"
+    tooltipText: root.connName + (root.vpnOn ? ": ON" : ": OFF")
     onPressed: function(b) {
       statusProbe.running = true
       root.toggle()
@@ -139,7 +124,7 @@ Panel {
           Text {
             id: title
             anchors.verticalCenter: parent.verticalCenter
-            text: "VPN"
+            text: root.connName
             color: root.barForeground
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.heading
@@ -175,26 +160,10 @@ Panel {
 
       Button {
         width: parent.width
-        text: root.busy ? "…" : (root.errorText !== "" ? root.errorText : (root.vpnOn ? "OFF" : "ON"))
+        text: root.busy ? "…" : (root.errorText !== "" ? root.errorText : (root.vpnOn ? "Disconnect" : "Connect"))
         accent: (root.vpnOn || root.errorText !== "") ? Color.urgent : Color.accent
         bordered: true
-        onClicked: {
-          if (root.showingPrompt) {
-            root.showingPrompt = false
-            root.passwordText = ""
-          } else root.beginAction()
-        }
-      }
-
-      TextField {
-        id: pwField
-        width: parent.width
-        visible: root.showingPrompt
-        password: true
-        placeholderText: "Sudo password"
-        text: root.showingPrompt ? root.passwordText : ""
-        onTextChanged: if (root.showingPrompt && text !== root.passwordText) root.passwordText = text
-        onAccepted: root.submitAction()
+        onClicked: root.submitAction()
       }
     }
   }

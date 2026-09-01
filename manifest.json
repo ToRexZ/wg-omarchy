@@ -2,15 +2,32 @@
   "schemaVersion": 1,
   "id": "wg-omarchy",
   "name": "WireGuard VPN",
-  "version": "0.1.2",
+  "version": "0.1.2+nm1",
   "author": "Liran",
-  "description": "WireGuard VPN toggle for the Omarchy bar",
-  "kinds": ["bar-widget"],
-  "entryPoints": { "barWidget": "Widget.qml" },
+  "description": "WireGuard VPN toggle for the Omarchy bar (NetworkManager)",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Widget.qml"
+  },
   "barWidget": {
     "displayName": "WireGuard",
     "category": "Network",
     "allowMultiple": false,
-    "defaultSection": "right"
+    "defaultSection": "right",
+    "description": "Click: VPN panel. Toggles a NetworkManager WireGuard connection.",
+    "defaults": {
+      "connection": "CapraWG-vhr"
+    },
+    "schema": [
+      {
+        "key": "connection",
+        "type": "string",
+        "label": "NetworkManager connection",
+        "defaultValue": "CapraWG-vhr",
+        "description": "Name of the WireGuard connection to toggle, exactly as listed by `nmcli con show`."
+      }
+    ]
   }
 }
