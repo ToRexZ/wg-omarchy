@@ -7,11 +7,16 @@ import qs.Ui
 Panel {
   id: root
   moduleName: "wg-omarchy"
+  // Panel gates its IpcHandler on ipcTarget, not moduleName, so without this
+  // the panel cannot be opened from a keybind or `omarchy-shell ipc`.
+  ipcTarget: "wg-omarchy"
 
   // NetworkManager owns this tunnel, so up/down is a connection action rather
   // than `wg-quick`: there is no /etc/wireguard/<iface>.conf to read and no
   // root to acquire. polkit's network-control grant covers the active session.
-  readonly property string connName: (settings && settings.connection) ? settings.connection : "CapraWG-vhr"
+  // setting() is Panel's reader for this widget's shell.json entry and handles
+  // an explicit null, which a plain `settings.connection` check does not.
+  readonly property string connName: setting("connection", "CapraWG-vhr")
 
   property bool vpnOn: false
   property bool busy: false
