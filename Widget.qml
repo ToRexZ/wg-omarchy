@@ -18,6 +18,17 @@ Panel {
   // an explicit null, which a plain `settings.connection` check does not.
   readonly property string connName: setting("connection", "wg0")
 
+  // The shell's palette is five roles — foreground, background, accent, urgent,
+  // muted — and green is not one of them. `Color.loadColors()` matches the
+  // theme's `green` key and drops it, so the one value this widget wants is the
+  // one value the singleton will not hand over: read it from the theme file.
+  //
+  // Empty until the read lands (and for a hand-written theme that omits the
+  // key), so the fallback is a muted green that survives a light theme too.
+  property string themeGreen: ""
+  readonly property color upColor: themeGreen !== "" ? themeGreen : "#a3be8c"
+  readonly property color downColor: Color.muted
+
   property bool vpnOn: false
   property bool busy: false
   property string errorText: ""
@@ -67,6 +78,46 @@ Panel {
     onTriggered: statusProbe.running = true
   }
 
+  // Same key/value shape the shell's own parser accepts, so a quoted or bare
+  // hex reads identically here and there.
+  function readThemeGreen(raw) {
+    var lines = String(raw || "").split("\n")
+    for (var i = 0; i < lines.length; i++) {
+      var m = lines[i].match(/^\s*green\s*=\s*["']?(#[0-9A-Fa-f]{6})/)
+      if (m) {
+        root.themeGreen = m[1]
+        return
+      }
+    }
+    root.themeGreen = ""
+  }
+
+  FileView {
+    id: themeColors
+    path: Color.currentThemePath + "/colors.toml"
+    watchChanges: true
+    printErrors: false
+    onLoaded: root.readThemeGreen(text())
+    // `text()` is stale inside the change signal, so both paths go through
+    // reload → onLoaded to always parse fresh content. Same reason
+    // Color.userShellFile does it this way.
+    onFileChanged: reload()
+    onLoadFailed: root.themeGreen = ""
+  }
+
+  // A runtime theme switch never touches the path above: omarchy repoints the
+  // `current/theme` symlink and pushes the new payload to the shell over IPC,
+  // which is why Color's own colorsFile sets watchChanges false and calls this
+  // a startup load. That push always reassigns Color's roles, so their change
+  // signals are the notification this widget gets. Three of them, because two
+  // themes can agree on any one value.
+  Connections {
+    target: Color
+    function onBackgroundChanged() { themeColors.reload() }
+    function onForegroundChanged() { themeColors.reload() }
+    function onAccentChanged() { themeColors.reload() }
+  }
+
   function submitAction() {
     if (root.busy || toggleProc.running) return
     root.busy = true
@@ -85,7 +136,13 @@ Panel {
     bar: root.bar
     text: "󰌆"
     active: root.vpnOn
-    dimmed: !root.vpnOn
+    // Left to itself this glyph is `bar.active` when up — which falls back to
+    // `urgent`, the same red the widget uses for Disconnect — and the bar
+    // foreground at 45% opacity when down, i.e. a faded copy of the up colour
+    // rather than a colour of its own. Both are named here instead, and
+    // `dimmed` is gone with them: down is a full-strength grey, not a ghost.
+    activeColor: root.upColor
+    foreground: root.downColor
     tooltipText: root.connName + (root.vpnOn ? ": ON" : ": OFF")
     onPressed: function(b) {
       statusProbe.running = true
